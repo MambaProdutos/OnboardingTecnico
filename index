@@ -1,0 +1,853 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Organizador de Onboarding Técnico</title>
+    <!-- Carrega o Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Carrega a biblioteca de ícones Lucide -->
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Configuração de Cores (Lakers) -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        'lakers-purple': {
+                            'DEFAULT': '#552583',
+                            'dark': '#3a1a5c',
+                            'darker': '#2c1345',
+                        },
+                        'lakers-gold': {
+                            'DEFAULT': '#FDB927',
+                            'light': '#ffca60',
+                        },
+                    },
+                },
+            },
+        };
+    </script>
+
+    <!-- Estilos Globais e Animações de Modal -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #2c1345; /* lakers-purple-darker */
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 50;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0, 0, 0, 0.6);
+            animation: fadeIn 0.3s ease-out;
+        }
+        .modal-content {
+            animation: slideIn 0.3s ease-out;
+            max-height: 90vh;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        @keyframes slideIn {
+            from { transform: translateY(-30px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        .tab-button.active {
+            border-bottom-color: #FDB927; /* lakers-gold */
+            color: #FDB927;
+        }
+        /* Scrollbar customizada */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #3a1a5c; /* lakers-purple-dark */
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #FDB927; /* lakers-gold */
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #ffca60; /* lakers-gold-light */
+        }
+    </style>
+</head>
+<body class="text-lakers-gold">
+
+    <!-- Header -->
+    <header class="bg-lakers-purple-dark shadow-lg p-6 flex justify-between items-center sticky top-0 z-40">
+        <h1 class="text-3xl font-bold text-lakers-gold">Organizador de Onboarding</h1>
+        <button id="show-create-class-modal" class="bg-lakers-gold text-lakers-purple-darker font-semibold py-2 px-5 rounded-lg shadow-md hover:bg-lakers-gold-light transition duration-300 flex items-center space-x-2">
+            <i data-lucide="plus-circle" class="w-5 h-5"></i>
+            <span>Criar Nova Turma</span>
+        </button>
+    </header>
+
+    <!-- Container Principal das Turmas -->
+    <main id="classes-container" class="p-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <!-- Turmas serão injetadas aqui -->
+    </main>
+
+    <!-- Mensagem de "Nenhuma turma" -->
+    <div id="no-classes-message" class="hidden text-center p-16">
+        <i data-lucide="folder-search" class="w-24 h-24 mx-auto text-lakers-purple"></i>
+        <h2 class="text-2xl font-semibold mt-4">Nenhuma turma encontrada</h2>
+        <p class="text-lg text-gray-400">Clique em "Criar Nova Turma" para começar.</p>
+    </div>
+
+    <!-- Loading Spinner Global -->
+    <div id="loading-spinner" class="fixed inset-0 bg-lakers-purple-darker bg-opacity-80 flex justify-center items-center z-[99]">
+        <div class="animate-spin rounded-full h-24 w-24 border-t-4 border-b-4 border-lakers-gold"></div>
+    </div>
+
+    <!-- Modal: Criar Nova Turma -->
+    <div id="create-class-modal" class="modal">
+        <div class="modal-content bg-lakers-purple-dark w-11/12 md:max-w-md m-auto mt-20 p-6 rounded-xl shadow-2xl border border-lakers-purple">
+            <h2 class="text-2xl font-bold text-lakers-gold mb-6">Criar Nova Turma</h2>
+            <label for="start-date" class="block text-sm font-medium mb-2">Selecione a data de início:</label>
+            <input type="date" id="start-date" class="w-full p-3 rounded-lg bg-lakers-purple-darker border border-lakers-purple text-white focus:outline-none focus:ring-2 focus:ring-lakers-gold" />
+            <div class="flex justify-end space-x-4 mt-8">
+                <button id="cancel-create-class" class="py-2 px-5 rounded-lg bg-gray-600 text-white hover:bg-gray-500 transition">Cancelar</button>
+                <button id="confirm-create-class" class="py-2 px-5 rounded-lg bg-lakers-gold text-lakers-purple-darker font-semibold hover:bg-lakers-gold-light transition">Criar Turma</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Adicionar Aluno -->
+    <div id="add-student-modal" class="modal">
+        <div class="modal-content bg-lakers-purple-dark w-11/12 md:max-w-md m-auto mt-20 p-6 rounded-xl shadow-2xl border border-lakers-purple">
+            <h2 class="text-2xl font-bold text-lakers-gold mb-6">Adicionar Novo Aluno</h2>
+            <input type="hidden" id="add-student-class-id">
+            <div class="space-y-4">
+                <div>
+                    <label for="student-name" class="block text-sm font-medium mb-2">Nome do Aluno:</label>
+                    <input type="text" id="student-name" placeholder="Ex: João da Silva" class="w-full p-3 rounded-lg bg-lakers-purple-darker border border-lakers-purple text-white focus:outline-none focus:ring-2 focus:ring-lakers-gold" />
+                </div>
+                <div>
+                    <label for="student-role" class="block text-sm font-medium mb-2">Função:</label>
+                    <input type="text" id="student-role" placeholder="Ex: Desenvolvedor Jr." class="w-full p-3 rounded-lg bg-lakers-purple-darker border border-lakers-purple text-white focus:outline-none focus:ring-2 focus:ring-lakers-gold" />
+                </div>
+            </div>
+            <div class="flex justify-end space-x-4 mt-8">
+                <button id="cancel-add-student" class="py-2 px-5 rounded-lg bg-gray-600 text-white hover:bg-gray-500 transition">Cancelar</button>
+                <button id="confirm-add-student" class="py-2 px-5 rounded-lg bg-lakers-gold text-lakers-purple-darker font-semibold hover:bg-lakers-gold-light transition">Adicionar Aluno</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Ver Detalhes da Turma -->
+    <div id="view-class-modal" class="modal">
+        <div class="modal-content bg-lakers-purple-dark w-11/12 md:max-w-4xl lg:max-w-6xl m-auto mt-10 p-6 rounded-xl shadow-2xl border border-lakers-purple overflow-y-auto">
+            <div class="flex justify-between items-center mb-6">
+                <div>
+                    <h2 id="view-class-title" class="text-3xl font-bold text-lakers-gold"></h2>
+                    <p id="view-class-week" class_name="text-xl text-lakers-gold-light"></p>
+                </div>
+                <button id="close-view-class" class="text-gray-400 hover:text-white transition">
+                    <i data-lucide="x" class="w-8 h-8"></i>
+                </button>
+            </div>
+            
+            <input type="hidden" id="view-class-id">
+
+            <!-- Abas -->
+            <div class="border-b border-lakers-purple mb-6">
+                <nav class="flex space-x-8">
+                    <button class="tab-button active text-lg font-semibold py-3 border-b-4 border-transparent" data-tab="schedule">
+                        Programação
+                    </button>
+                    <button class="tab-button text-lg font-semibold py-3 border-b-4 border-transparent text-gray-400" data-tab="students">
+                        Alunos & OKRs
+                    </button>
+                </nav>
+            </div>
+
+            <!-- Conteúdo Abas -->
+            <div id="tab-content-schedule" class="tab-content space-y-4">
+                <!-- Conteúdo da Programação -->
+            </div>
+
+            <div id="tab-content-students" class="tab-content hidden">
+                <button id="show-add-student-modal" class="mb-6 bg-lakers-gold text-lakers-purple-darker font-semibold py-2 px-5 rounded-lg shadow-md hover:bg-lakers-gold-light transition flex items-center space-x-2">
+                    <i data-lucide="user-plus" class="w-5 h-5"></i>
+                    <span>Adicionar Aluno</span>
+                </button>
+                <div id="students-okr-container" class="space-y-6">
+                    <!-- Conteúdo dos Alunos e OKRs -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Scripts Firebase -->
+    <script type="module">
+        // Importações do Firebase
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { 
+            getAuth, 
+            signInAnonymously, 
+            signInWithCustomToken, 
+            onAuthStateChanged 
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { 
+            getFirestore, 
+            doc, 
+            collection, 
+            addDoc, 
+            updateDoc, 
+            deleteDoc, 
+            onSnapshot, 
+            query,
+            setLogLevel
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- Configuração do Firebase ---
+        // Habilita logs para debug
+        setLogLevel('Debug');
+        
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-onboarding-app';
+        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        let db, auth, userId;
+        let localState = {
+            classes: []
+        };
+        let unsubscribeFromClasses = () => {};
+
+        // --- Elementos do DOM ---
+        const classesContainer = document.getElementById('classes-container');
+        const noClassesMessage = document.getElementById('no-classes-message');
+        const loadingSpinner = document.getElementById('loading-spinner');
+
+        const createClassModal = document.getElementById('create-class-modal');
+        const showCreateClassModalBtn = document.getElementById('show-create-class-modal');
+        const cancelCreateClassBtn = document.getElementById('cancel-create-class');
+        const confirmCreateClassBtn = document.getElementById('confirm-create-class');
+        const startDateInput = document.getElementById('start-date');
+
+        const addStudentModal = document.getElementById('add-student-modal');
+        const showAddStudentModalBtn = document.getElementById('show-add-student-modal');
+        const cancelAddStudentBtn = document.getElementById('cancel-add-student');
+        const confirmAddStudentBtn = document.getElementById('confirm-add-student');
+        const addStudentClassIdInput = document.getElementById('add-student-class-id');
+        const studentNameInput = document.getElementById('student-name');
+        const studentRoleInput = document.getElementById('student-role');
+
+        const viewClassModal = document.getElementById('view-class-modal');
+        const closeViewClassBtn = document.getElementById('close-view-class');
+        const viewClassTitle = document.getElementById('view-class-title');
+        const viewClassWeek = document.getElementById('view-class-week');
+        const viewClassIdInput = document.getElementById('view-class-id');
+        const scheduleTabContent = document.getElementById('tab-content-schedule');
+        const studentsTabContent = document.getElementById('tab-content-students');
+        const studentsOkrContainer = document.getElementById('students-okr-container');
+
+        // --- Funções Auxiliares de Data ---
+
+        /** Formata um objeto Date para dd/MM/yyyy */
+        function formatDate(date) {
+            if (!date) return 'Data Inválida';
+            // Adiciona 12 horas para evitar problemas de fuso horário que pulam o dia
+            const stableDate = new Date(date.getTime() + 12 * 60 * 60 * 1000);
+            return stableDate.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+        }
+        
+        /** Formata um objeto Date para yyyy-MM-dd */
+        function formatToISODate(date) {
+            return date.toISOString().split('T')[0];
+        }
+
+        /** Adiciona dias a uma data */
+        function addDays(date, days) {
+            const result = new Date(date);
+            result.setDate(result.getDate() + days);
+            return result;
+        }
+
+        /** Encontra o próximo dia útil (Seg-Sex) */
+        function getNextWorkingDay(date) {
+            const nextDay = new Date(date.getTime());
+            do {
+                nextDay.setDate(nextDay.getDate() + 1);
+            } while (nextDay.getDay() === 0 || nextDay.getDay() === 6); // 0 = Domingo, 6 = Sábado
+            return nextDay;
+        }
+
+        /** Encontra a próxima Segunda-Feira */
+        function getNextMonday(date) {
+            const nextDay = new Date(date.getTime());
+            nextDay.setDate(nextDay.getDate() + 1); // Começa do dia seguinte
+            while (nextDay.getDay() !== 1) { // 1 = Segunda
+                nextDay.setDate(nextDay.getDate() + 1);
+            }
+            return nextDay;
+        }
+
+        /** Gera a programação completa e as datas de início das semanas */
+        function generateScheduleAndWeeks(startDateString) {
+            // Garante que a data seja interpretada como local
+            const [year, month, day] = startDateString.split('-').map(Number);
+            const d0 = new Date(year, month - 1, day);
+
+            const d1 = getNextWorkingDay(d0);
+            const d2 = getNextWorkingDay(d1);
+            const d3 = getNextWorkingDay(d2);
+            const d4 = getNextWorkingDay(d3); // Fim da Semana 1 (Programação)
+
+            const schedule = [
+                { date: formatToISODate(d0), tasks: ["Apresentar onboarding técnico", "Member Kit - Introdução ao Marketplace"] },
+                { date: formatToISODate(d1), tasks: ["Member Kit - Nossos serviços", "Member Kit - Rampagem Performance", "Inicio / reapresentação Shark Tank"] },
+                { date: formatToISODate(d2), tasks: ["Assistir Todas formações: Growth, Analytics, Assessor"] },
+                { date: formatToISODate(d3), tasks: ["Assistir videos mamba academy", "Ler Metodologia", "1:1 Com todos"] },
+                { date: formatToISODate(d4), tasks: ["AVALIAÇÃO DE FORMAÇÃO"] }
+            ];
+
+            // Calcula inícios das semanas
+            const startOfWeek2 = getNextMonday(d4);
+            const startOfWeek3 = addDays(startOfWeek2, 7);
+            const fridayOfWeek3 = addDays(startOfWeek3, 4); // Sexta da Semana 3
+            const startOfWeek4 = addDays(startOfWeek3, 7);
+            const startOfWeek5 = addDays(startOfWeek4, 7); // Data de "Completo"
+
+            const weekStartDates = {
+                startOfWeek1: formatToISODate(d0),
+                startOfWeek2: formatToISODate(startOfWeek2),
+                startOfWeek3: formatToISODate(startOfWeek3),
+                fridayOfWeek3: formatToISODate(fridayOfWeek3),
+                startOfWeek4: formatToISODate(startOfWeek4),
+                startOfWeek5: formatToISODate(startOfWeek5),
+            };
+
+            return { schedule, weekStartDates };
+        }
+
+        /** Calcula a semana atual com base nas datas */
+        function getCurrentWeekInfo(weekStartDates) {
+            if (!weekStartDates || !weekStartDates.startOfWeek1) {
+                return { text: "Semana Indefinida", weekNumber: 0 };
+            }
+
+            const today = new Date();
+            today.setHours(0, 0, 0, 0); // Zera a hora para comparação
+
+            // Converte strings ISO para objetos Date (interpretando como UTC para evitar timezone shift)
+            const w1 = new Date(weekStartDates.startOfWeek1 + 'T00:00:00Z');
+            const w2 = new Date(weekStartDates.startOfWeek2 + 'T00:00:00Z');
+            const w3 = new Date(weekStartDates.startOfWeek3 + 'T00:00:00Z');
+            const w4 = new Date(weekStartDates.startOfWeek4 + 'T00:00:00Z');
+            const w5 = new Date(weekStartDates.startOfWeek5 + 'T00:00:00Z');
+
+            if (today >= w5) return { text: "Onboarding Técnico Completo", weekNumber: 5 };
+            if (today >= w4) return { text: "Semana 4", weekNumber: 4 };
+            if (today >= w3) return { text: "Semana 3", weekNumber: 3 };
+            if (today >= w2) return { text: "Semana 2", weekNumber: 2 };
+            return { text: "Semana 1 (Programação)", weekNumber: 1 };
+        }
+
+
+        // --- Funções do Firestore ---
+
+        function getCollectionRef() {
+            // Esta aplicação é colaborativa, então usamos dados públicos
+            return collection(db, `artifacts/${appId}/public/data/onboarding-classes`);
+        }
+
+        /** Carrega as turmas do Firestore */
+        function loadClasses() {
+            if (!auth.currentUser) {
+                console.log("Usuário não autenticado, aguardando...");
+                return;
+            }
+            
+            loadingSpinner.style.display = 'flex';
+            
+            // Cancela a inscrição anterior para evitar listeners duplicados
+            unsubscribeFromClasses(); 
+
+            const q = query(getCollectionRef());
+            
+            unsubscribeFromClasses = onSnapshot(q, (snapshot) => {
+                localState.classes = [];
+                snapshot.forEach((doc) => {
+                    localState.classes.push({ id: doc.id, ...doc.data() });
+                });
+                
+                // Ordena as turmas pela data de início mais recente
+                localState.classes.sort((a, b) => new Date(b.startDate) - new Date(a.startDate));
+                
+                renderClasses();
+                loadingSpinner.style.display = 'none';
+            }, (error) => {
+                console.error("Erro ao carregar turmas: ", error);
+                loadingSpinner.style.display = 'none';
+            });
+        }
+
+        /** Cria uma nova turma */
+        async function createClass(startDate) {
+            if (!startDate) {
+                alert("Por favor, selecione uma data de início."); // Usando alert simples para validação
+                return;
+            }
+
+            loadingSpinner.style.display = 'flex';
+            try {
+                const { schedule, weekStartDates } = generateScheduleAndWeeks(startDate);
+                const newClass = {
+                    startDate: startDate,
+                    schedule: schedule,
+                    weekStartDates: weekStartDates,
+                    students: []
+                };
+                await addDoc(getCollectionRef(), newClass);
+                closeModal(createClassModal);
+            } catch (error) {
+                console.error("Erro ao criar turma: ", error);
+            } finally {
+                loadingSpinner.style.display = 'none';
+            }
+        }
+
+        /** Adiciona um aluno a uma turma */
+        async function addStudent(classId, name, role) {
+            if (!name || !role) {
+                alert("Por favor, preencha o nome e a função do aluno.");
+                return;
+            }
+
+            const classData = localState.classes.find(c => c.id === classId);
+            if (!classData) return;
+
+            const newStudent = {
+                id: crypto.randomUUID(),
+                name: name,
+                role: role,
+                autonomy: 'Autonomia Parcial',
+                okrs: {
+                    week2_memberKit: false,
+                    week2_aprovacao: false,
+                    week2_dones: false,
+                    week3_dones: false,
+                    week3_1on1: false, // Tarefa especial da Semana 3
+                    week4_dones: false,
+                    week4_sharkTank: false
+                }
+            };
+            
+            const updatedStudents = [...classData.students, newStudent];
+
+            loadingSpinner.style.display = 'flex';
+            try {
+                const docRef = doc(db, `artifacts/${appId}/public/data/onboarding-classes/${classId}`);
+                await updateDoc(docRef, { students: updatedStudents });
+                closeModal(addStudentModal);
+                // O onSnapshot vai atualizar a UI, mas podemos forçar a reabertura do modal
+                openViewModal(classId, 'students');
+            } catch (error) {
+                console.error("Erro ao adicionar aluno: ", error);
+            } finally {
+                loadingSpinner.style.display = 'none';
+            }
+        }
+        
+        /** Atualiza um dado de um aluno (OKR ou Autonomia) */
+        async function updateStudentData(classId, studentId, key, value) {
+            const classData = localState.classes.find(c => c.id === classId);
+            if (!classData) return;
+
+            const updatedStudents = classData.students.map(student => {
+                if (student.id === studentId) {
+                    if (key === 'autonomy') {
+                        return { ...student, autonomy: value };
+                    } else {
+                        // Atualiza o OKR específico
+                        const updatedOkrs = { ...student.okrs, [key]: value };
+                        return { ...student, okrs: updatedOkrs };
+                    }
+                }
+                return student;
+            });
+
+            // Não mostra o spinner global para pequenas atualizações, para fluidez
+            try {
+                const docRef = doc(db, `artifacts/${appId}/public/data/onboarding-classes/${classId}`);
+                await updateDoc(docRef, { students: updatedStudents });
+                // Atualiza o modal se estiver aberto
+                if (viewClassModal.style.display === 'block' && viewClassIdInput.value === classId) {
+                     renderStudentsOKR(classData, classId); // Re-renderiza apenas a lista de alunos
+                }
+            } catch (error) {
+                console.error("Erro ao atualizar aluno: ", error);
+            }
+        }
+
+        /** Exclui um aluno */
+        async function deleteStudent(classId, studentId) {
+            if (!confirm("Tem certeza que deseja excluir este aluno?")) return;
+
+            const classData = localState.classes.find(c => c.id === classId);
+            if (!classData) return;
+
+            const updatedStudents = classData.students.filter(student => student.id !== studentId);
+
+            loadingSpinner.style.display = 'flex';
+            try {
+                const docRef = doc(db, `artifacts/${appId}/public/data/onboarding-classes/${classId}`);
+                await updateDoc(docRef, { students: updatedStudents });
+                openViewModal(classId, 'students'); // Reabre o modal atualizado
+            } catch (error) {
+                console.error("Erro ao excluir aluno: ", error);
+            } finally {
+                loadingSpinner.style.display = 'none';
+            }
+        }
+        
+        /** Exclui uma turma */
+        async function deleteClass(classId) {
+            if (!confirm("Tem certeza que deseja excluir esta turma? Esta ação é irreversível.")) return;
+
+            loadingSpinner.style.display = 'flex';
+            try {
+                const docRef = doc(db, `artifacts/${appId}/public/data/onboarding-classes/${classId}`);
+                await deleteDoc(docRef);
+                // O onSnapshot cuidará de atualizar a UI
+            } catch (error) {
+                console.error("Erro ao excluir turma: ", error);
+            } finally {
+                loadingSpinner.style.display = 'none';
+            }
+        }
+
+        // --- Funções de Renderização ---
+
+        /** Renderiza todos os cards de turmas */
+        function renderClasses() {
+            classesContainer.innerHTML = ''; // Limpa o container
+            if (localState.classes.length === 0) {
+                noClassesMessage.style.display = 'block';
+                return;
+            }
+
+            noClassesMessage.style.display = 'none';
+            
+            localState.classes.forEach(classData => {
+                const card = document.createElement('div');
+                card.className = 'bg-lakers-purple rounded-xl shadow-lg p-6 border border-lakers-purple-dark hover:shadow-2xl hover:border-lakers-gold transition-all duration-300 transform hover:-translate-y-1';
+                
+                const weekInfo = getCurrentWeekInfo(classData.weekStartDates);
+                let weekColor = 'text-lakers-gold-light';
+                if (weekInfo.weekNumber === 5) {
+                    weekColor = 'text-green-400';
+                }
+
+                card.innerHTML = `
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <h3 class="text-2xl font-bold text-white">Turma de ${formatDate(new Date(classData.startDate + 'T12:00:00'))}</h3>
+                            <p class="${weekColor} text-lg font-semibold mt-1">${weekInfo.text}</p>
+                        </div>
+                        <span class="flex items-center text-white bg-lakers-purple-dark px-3 py-1 rounded-full text-sm font-medium">
+                            <i data-lucide="users" class="w-4 h-4 mr-2"></i>
+                            ${classData.students.length}
+                        </span>
+                    </div>
+                    <div class="flex justify-end space-x-3 mt-6">
+                        <button data-action="delete" data-id="${classData.id}" class="text-gray-400 hover:text-red-500 transition p-2 rounded-full">
+                            <i data-lucide="trash-2" class="w-5 h-5 pointer-events-none"></i>
+                        </button>
+                        <button data-action="view" data-id="${classData.id}" class="bg-lakers-gold text-lakers-purple-darker font-semibold py-2 px-5 rounded-lg shadow-md hover:bg-lakers-gold-light transition">
+                            Ver Detalhes
+                        </button>
+                    </div>
+                `;
+                classesContainer.appendChild(card);
+            });
+            lucide.createIcons(); // Atualiza os ícones
+        }
+
+        /** Abre e preenche o modal de detalhes da turma */
+        function openViewModal(classId, defaultTab = 'schedule') {
+            const classData = localState.classes.find(c => c.id === classId);
+            if (!classData) return;
+
+            viewClassIdInput.value = classId;
+            addStudentClassIdInput.value = classId;
+            viewClassTitle.textContent = `Turma de ${formatDate(new Date(classData.startDate + 'T12:00:00'))}`;
+            
+            const weekInfo = getCurrentWeekInfo(classData.weekStartDates);
+            viewClassWeek.textContent = weekInfo.text;
+            viewClassWeek.className = 'text-xl';
+            if (weekInfo.weekNumber === 5) {
+                viewClassWeek.classList.add('text-green-400');
+            } else {
+                viewClassWeek.classList.add('text-lakers-gold-light');
+            }
+
+            // Renderiza Programação
+            scheduleTabContent.innerHTML = classData.schedule.map(day => `
+                <div class="bg-lakers-purple-dark rounded-lg p-4">
+                    <h4 class="text-lg font-semibold text-lakers-gold">${formatDate(new Date(day.date + 'T12:00:00'))}</h4>
+                    <ul class="list-disc list-inside text-white mt-2 space-y-1">
+                        ${day.tasks.map(task => `<li>${task}</li>`).join('')}
+                    </ul>
+                </div>
+            `).join('');
+            
+            // Renderiza Alunos
+            renderStudentsOKR(classData, classId);
+
+            // Abre o modal e a aba correta
+            switchTab(defaultTab);
+            openModal(viewClassModal);
+        }
+        
+        /** Renderiza a lista de alunos e OKRs no modal */
+        function renderStudentsOKR(classData, classId) {
+            studentsOkrContainer.innerHTML = ''; // Limpa
+            
+            if(classData.students.length === 0) {
+                studentsOkrContainer.innerHTML = `<p class="text-gray-400 text-center">Nenhum aluno adicionado a esta turma.</p>`;
+                return;
+            }
+            
+            const weekInfo = getCurrentWeekInfo(classData.weekStartDates);
+
+            classData.students.forEach(student => {
+                const studentCard = document.createElement('div');
+                studentCard.className = 'bg-lakers-purple-dark rounded-lg p-6 relative';
+                
+                // Botão de Excluir Aluno
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'absolute top-4 right-4 text-gray-500 hover:text-red-500 transition';
+                deleteBtn.innerHTML = `<i data-lucide="trash-2" class="w-5 h-5"></i>`;
+                deleteBtn.onclick = () => deleteStudent(classId, student.id);
+                studentCard.appendChild(deleteBtn);
+
+                // Conteúdo do Card
+                studentCard.innerHTML += `
+                    <div class="flex items-center justify-between mb-4">
+                        <div>
+                            <h4 class="text-xl font-bold text-white">${student.name}</h4>
+                            <p class="text-lakers-gold-light">${student.role}</p>
+                        </div>
+                        <div>
+                            <label for="autonomy-${student.id}" class="block text-sm font-medium mb-1">Autonomia</label>
+                            <select id="autonomy-${student.id}" data-studentid="${student.id}" data-classid="${classId}" class="autonomy-select bg-lakers-purple text-white rounded-lg p-2 border border-lakers-gold focus:outline-none focus:ring-2 focus:ring-lakers-gold">
+                                <option value="Autonomia Parcial" ${student.autonomy === 'Autonomia Parcial' ? 'selected' : ''}>Parcial</option>
+                                <option value="Autonomia Completa" ${student.autonomy === 'Autonomia Completa' ? 'selected' : ''}>Completa</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <!-- OKRs -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        ${renderOkrSection("Semana 2", [
+                            { key: 'week2_memberKit', label: 'Finalização do Member Kit', checked: student.okrs.week2_memberKit },
+                            { key: 'week2_aprovacao', label: 'Aprovação na Formação', checked: student.okrs.week2_aprovacao },
+                            { key: 'week2_dones', label: '5 Dones completos (Semana)', checked: student.okrs.week2_dones },
+                        ], student.id, classId, weekInfo.weekNumber >= 2)}
+                        
+                        ${renderOkrSection("Semana 3", [
+                            { key: 'week3_dones', label: '10 Dones Completos', checked: student.okrs.week3_dones },
+                            { key: 'week3_1on1', label: '1:1 LÍDER + BUDDY (Sexta)', checked: student.okrs.week3_1on1 },
+                        ], student.id, classId, weekInfo.weekNumber >= 3)}
+
+                        ${renderOkrSection("Semana 4", [
+                            { key: 'week4_dones', label: '15 Dones completos', checked: student.okrs.week4_dones },
+                            { key: 'week4_sharkTank', label: 'Aprovação no Shark Tank', checked: student.okrs.week4_sharkTank },
+                        ], student.id, classId, weekInfo.weekNumber >= 4)}
+                    </div>
+                `;
+                studentsOkrContainer.appendChild(studentCard);
+            });
+            lucide.createIcons();
+        }
+
+        /** Função auxiliar para renderizar uma seção de OKR */
+        function renderOkrSection(title, okrs, studentId, classId, isActive) {
+            const opacityClass = isActive ? 'opacity-100' : 'opacity-40';
+            const titleColor = isActive ? 'text-lakers-gold' : 'text-gray-500';
+            
+            return `
+                <div class="bg-lakers-purple-darker p-4 rounded-lg ${opacityClass} transition-opacity">
+                    <h5 class="${titleColor} text-lg font-semibold mb-3">${title}</h5>
+                    <div class="space-y-3">
+                        ${okrs.map(okr => `
+                            <label class="flex items-center text-white cursor-pointer">
+                                <input type="checkbox" 
+                                       data-okrkey="${okr.key}" 
+                                       data-studentid="${studentId}" 
+                                       data-classid="${classId}"
+                                       class="okr-checkbox h-5 w-5 rounded bg-lakers-purple border-lakers-gold text-lakers-gold focus:ring-lakers-gold"
+                                       ${okr.checked ? 'checked' : ''}
+                                       ${!isActive ? 'disabled' : ''}>
+                                <span class="ml-3">${okr.label}</span>
+                            </label>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+
+        // --- Funções de Modal ---
+        function openModal(modal) {
+            modal.style.display = 'block';
+        }
+        function closeModal(modal) {
+            modal.style.display = 'none';
+        }
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
+            document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active', 'text-lakers-gold'));
+            
+            document.getElementById(`tab-content-${tabName}`).style.display = 'block';
+            document.querySelector(`.tab-button[data-tab="${tabName}"]`).classList.add('active', 'text-lakers-gold');
+            document.querySelector(`.tab-button[data-tab="${tabName}"]`).classList.remove('text-gray-400');
+        }
+
+
+        // --- Event Listeners ---
+        function setupEventListeners() {
+            // Abrir modal de criar turma
+            showCreateClassModalBtn.addEventListener('click', () => {
+                startDateInput.valueAsDate = new Date(); // Define a data de hoje
+                openModal(createClassModal);
+            });
+            
+            // Fechar modais
+            cancelCreateClassBtn.addEventListener('click', () => closeModal(createClassModal));
+            cancelAddStudentBtn.addEventListener('click', () => closeModal(addStudentModal));
+            closeViewClassBtn.addEventListener('click', () => closeModal(viewClassModal));
+            
+            // Ações principais
+            confirmCreateClassBtn.addEventListener('click', () => {
+                createClass(startDateInput.value);
+            });
+            
+            confirmAddStudentBtn.addEventListener('click', () => {
+                addStudent(
+                    addStudentClassIdInput.value,
+                    studentNameInput.value,
+                    studentRoleInput.value
+                );
+                // Limpa os campos
+                studentNameInput.value = '';
+                studentRoleInput.value = '';
+            });
+
+            // Abrir modal de adicionar aluno (de dentro do modal de turma)
+            showAddStudentModalBtn.addEventListener('click', () => {
+                // O classId já está no input hidden `add-student-class-id`
+                openModal(addStudentModal);
+            });
+
+            // Delegação de eventos no container de turmas
+            classesContainer.addEventListener('click', (e) => {
+                const button = e.target.closest('button');
+                if (!button) return;
+
+                const action = button.dataset.action;
+                const id = button.dataset.id;
+
+                if (action === 'view') {
+                    openViewModal(id);
+                }
+                if (action === 'delete') {
+                    deleteClass(id);
+                }
+            });
+
+            // Delegação de eventos no modal de alunos (para OKRs e Autonomia)
+            studentsTabContent.addEventListener('change', (e) => {
+                const target = e.target;
+                
+                // Checkbox de OKR
+                if (target.classList.contains('okr-checkbox')) {
+                    const { okrkey, studentid, classid } = target.dataset;
+                    updateStudentData(classid, studentid, okrkey, target.checked);
+                }
+                
+                // Select de Autonomia
+                if (target.classList.contains('autonomy-select')) {
+                    const { studentid, classid } = target.dataset;
+                    updateStudentData(classid, studentid, 'autonomy', target.value);
+                }
+            });
+
+            // Troca de Abas
+            document.querySelectorAll('.tab-button').forEach(button => {
+                button.addEventListener('click', () => {
+                    switchTab(button.dataset.tab);
+                });
+            });
+
+            // Fechar modal clicando fora
+            window.addEventListener('click', (e) => {
+                if (e.target === createClassModal) closeModal(createClassModal);
+                if (e.target === addStudentModal) closeModal(addStudentModal);
+                if (e.target === viewClassModal) closeModal(viewClassModal);
+            });
+        }
+        
+        // --- Inicialização ---
+        async function initializeAppWithAuth() {
+            try {
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+
+                onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                        console.log('Usuário autenticado:', user.uid);
+                        userId = user.uid;
+                        loadClasses(); // Carrega os dados assim que o usuário estiver pronto
+                    } else {
+                        console.log('Nenhum usuário. Tentando autenticar...');
+                        if (initialAuthToken) {
+                            try {
+                                await signInWithCustomToken(auth, initialAuthToken);
+                                console.log('Login com Custom Token OK.');
+                            } catch (error) {
+                                console.error('Falha no login com Custom Token, tentando anônimo:', error);
+                                await signInAnonymously(auth);
+                            }
+                        } else {
+                            await signInAnonymously(auth);
+                            console.log('Login anônimo OK.');
+                        }
+                    }
+                });
+            } catch (error) {
+                console.error("Erro ao inicializar Firebase:", error);
+                loadingSpinner.textContent = 'Erro ao carregar a aplicação.';
+            }
+        }
+        
+        // Inicia a aplicação
+        document.addEventListener('DOMContentLoaded', () => {
+            setupEventListeners();
+            lucide.createIcons(); // Renderiza ícones iniciais
+            initializeAppWithAuth();
+        });
+
+    </script>
+</body>
+</html>
+
