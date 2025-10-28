@@ -6,8 +6,6 @@
     <title>Organizador de Onboarding Técnico</title>
     <!-- Carrega o Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Carrega a biblioteca de ícones Lucide -->
-    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     
     <!-- Configuração de Cores (Lakers) -->
@@ -92,7 +90,7 @@
     <header class="bg-lakers-purple-dark shadow-lg p-6 flex justify-between items-center sticky top-0 z-40">
         <h1 class="text-3xl font-bold text-lakers-gold">Organizador de Onboarding</h1>
         <button id="show-create-class-modal" class="bg-lakers-gold text-lakers-purple-darker font-semibold py-2 px-5 rounded-lg shadow-md hover:bg-lakers-gold-light transition duration-300 flex items-center space-x-2">
-            <i data-lucide="plus-circle" class="w-5 h-5"></i>
+            <span class="font-bold text-xl mr-1">+</span>
             <span>Criar Nova Turma</span>
         </button>
     </header>
@@ -104,14 +102,8 @@
 
     <!-- Mensagem de "Nenhuma turma" -->
     <div id="no-classes-message" class="hidden text-center p-16">
-        <i data-lucide="folder-search" class="w-24 h-24 mx-auto text-lakers-purple"></i>
         <h2 class="text-2xl font-semibold mt-4">Nenhuma turma encontrada</h2>
         <p class="text-lg text-gray-400">Clique em "Criar Nova Turma" para começar.</p>
-    </div>
-
-    <!-- Loading Spinner Global -->
-    <div id="loading-spinner" class="fixed inset-0 bg-lakers-purple-darker bg-opacity-80 flex justify-center items-center z-[99]">
-        <div class="animate-spin rounded-full h-24 w-24 border-t-4 border-b-4 border-lakers-gold"></div>
     </div>
 
     <!-- Modal: Criar Nova Turma -->
@@ -157,9 +149,7 @@
                     <h2 id="view-class-title" class="text-3xl font-bold text-lakers-gold"></h2>
                     <p id="view-class-week" class_name="text-xl text-lakers-gold-light"></p>
                 </div>
-                <button id="close-view-class" class="text-gray-400 hover:text-white transition">
-                    <i data-lucide="x" class="w-8 h-8"></i>
-                </button>
+                <button id="close-view-class" class="text-gray-400 hover:text-white transition text-3xl font-bold">&times;</button>
             </div>
             
             <input type="hidden" id="view-class-id">
@@ -183,7 +173,7 @@
 
             <div id="tab-content-students" class="tab-content hidden">
                 <button id="show-add-student-modal" class="mb-6 bg-lakers-gold text-lakers-purple-darker font-semibold py-2 px-5 rounded-lg shadow-md hover:bg-lakers-gold-light transition flex items-center space-x-2">
-                    <i data-lucide="user-plus" class="w-5 h-5"></i>
+                    <span class="font-bold text-xl mr-1">+</span>
                     <span>Adicionar Aluno</span>
                 </button>
                 <div id="students-okr-container" class="space-y-6">
@@ -194,46 +184,17 @@
     </div>
 
 
-    <!-- Scripts Firebase -->
+    <!-- Script principal -->
     <script type="module">
-        // Importações do Firebase
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { 
-            getAuth, 
-            signInAnonymously, 
-            signInWithCustomToken, 
-            onAuthStateChanged 
-        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { 
-            getFirestore, 
-            doc, 
-            collection, 
-            addDoc, 
-            updateDoc, 
-            deleteDoc, 
-            onSnapshot, 
-            query,
-            setLogLevel
-        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        // --- Configuração do Firebase ---
-        // Habilita logs para debug
-        setLogLevel('Debug');
-        
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-onboarding-app';
-        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-
-        let db, auth, userId;
+        // --- Configuração do LocalStorage ---
+        const STORAGE_KEY = 'onboardingAppClasses';
         let localState = {
             classes: []
         };
-        let unsubscribeFromClasses = () => {};
 
         // --- Elementos do DOM ---
         const classesContainer = document.getElementById('classes-container');
         const noClassesMessage = document.getElementById('no-classes-message');
-        const loadingSpinner = document.getElementById('loading-spinner');
 
         const createClassModal = document.getElementById('create-class-modal');
         const showCreateClassModalBtn = document.getElementById('show-create-class-modal');
@@ -361,78 +322,64 @@
         }
 
 
-        // --- Funções do Firestore ---
+        // --- Funções de Armazenamento Local ---
 
-        function getCollectionRef() {
-            // Esta aplicação é colaborativa, então usamos dados públicos
-            return collection(db, `artifacts/${appId}/public/data/onboarding-classes`);
+        /** Salva o estado atual no localStorage */
+        function saveClassesToStorage() {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(localState.classes));
         }
 
-        /** Carrega as turmas do Firestore */
+        /** Carrega as turmas do localStorage */
         function loadClasses() {
-            if (!auth.currentUser) {
-                console.log("Usuário não autenticado, aguardando...");
-                return;
+            const classesFromStorage = localStorage.getItem(STORAGE_KEY);
+            if (classesFromStorage) {
+                localState.classes = JSON.parse(classesFromStorage);
+            } else {
+                localState.classes = [];
             }
             
-            loadingSpinner.style.display = 'flex';
+            // Ordena as turmas pela data de início mais recente
+            localState.classes.sort((a, b) => new Date(b.startDate) - new Date(a.startDate));
             
-            // Cancela a inscrição anterior para evitar listeners duplicados
-            unsubscribeFromClasses(); 
-
-            const q = query(getCollectionRef());
-            
-            unsubscribeFromClasses = onSnapshot(q, (snapshot) => {
-                localState.classes = [];
-                snapshot.forEach((doc) => {
-                    localState.classes.push({ id: doc.id, ...doc.data() });
-                });
-                
-                // Ordena as turmas pela data de início mais recente
-                localState.classes.sort((a, b) => new Date(b.startDate) - new Date(a.startDate));
-                
-                renderClasses();
-                loadingSpinner.style.display = 'none';
-            }, (error) => {
-                console.error("Erro ao carregar turmas: ", error);
-                loadingSpinner.style.display = 'none';
-            });
+            renderClasses();
         }
 
         /** Cria uma nova turma */
-        async function createClass(startDate) {
+        function createClass(startDate) {
             if (!startDate) {
-                alert("Por favor, selecione uma data de início."); // Usando alert simples para validação
+                alert("Por favor, selecione uma data de início.");
                 return;
             }
 
-            loadingSpinner.style.display = 'flex';
             try {
                 const { schedule, weekStartDates } = generateScheduleAndWeeks(startDate);
                 const newClass = {
+                    id: crypto.randomUUID(), // Gera um ID único
                     startDate: startDate,
                     schedule: schedule,
                     weekStartDates: weekStartDates,
                     students: []
                 };
-                await addDoc(getCollectionRef(), newClass);
+                
+                localState.classes.push(newClass);
+                saveClassesToStorage();
+                renderClasses(); // Atualiza a visualização principal
                 closeModal(createClassModal);
+
             } catch (error) {
                 console.error("Erro ao criar turma: ", error);
-            } finally {
-                loadingSpinner.style.display = 'none';
             }
         }
 
         /** Adiciona um aluno a uma turma */
-        async function addStudent(classId, name, role) {
+        function addStudent(classId, name, role) {
             if (!name || !role) {
                 alert("Por favor, preencha o nome e a função do aluno.");
                 return;
             }
 
-            const classData = localState.classes.find(c => c.id === classId);
-            if (!classData) return;
+            const classIndex = localState.classes.findIndex(c => c.id === classId);
+            if (classIndex === -1) return;
 
             const newStudent = {
                 id: crypto.randomUUID(),
@@ -450,26 +397,22 @@
                 }
             };
             
+            const classData = localState.classes[classIndex];
             const updatedStudents = [...classData.students, newStudent];
+            localState.classes[classIndex].students = updatedStudents;
+            
+            saveClassesToStorage();
+            closeModal(addStudentModal);
+            openViewModal(classId, 'students'); // Reabre o modal com dados atualizados
 
-            loadingSpinner.style.display = 'flex';
-            try {
-                const docRef = doc(db, `artifacts/${appId}/public/data/onboarding-classes/${classId}`);
-                await updateDoc(docRef, { students: updatedStudents });
-                closeModal(addStudentModal);
-                // O onSnapshot vai atualizar a UI, mas podemos forçar a reabertura do modal
-                openViewModal(classId, 'students');
-            } catch (error) {
-                console.error("Erro ao adicionar aluno: ", error);
-            } finally {
-                loadingSpinner.style.display = 'none';
-            }
         }
         
         /** Atualiza um dado de um aluno (OKR ou Autonomia) */
-        async function updateStudentData(classId, studentId, key, value) {
-            const classData = localState.classes.find(c => c.id === classId);
-            if (!classData) return;
+        function updateStudentData(classId, studentId, key, value) {
+            const classIndex = localState.classes.findIndex(c => c.id === classId);
+            if (classIndex === -1) return;
+
+            const classData = localState.classes[classIndex];
 
             const updatedStudents = classData.students.map(student => {
                 if (student.id === studentId) {
@@ -483,55 +426,39 @@
                 }
                 return student;
             });
+            
+            localState.classes[classIndex].students = updatedStudents;
+            saveClassesToStorage();
 
-            // Não mostra o spinner global para pequenas atualizações, para fluidez
-            try {
-                const docRef = doc(db, `artifacts/${appId}/public/data/onboarding-classes/${classId}`);
-                await updateDoc(docRef, { students: updatedStudents });
-                // Atualiza o modal se estiver aberto
-                if (viewClassModal.style.display === 'block' && viewClassIdInput.value === classId) {
-                     renderStudentsOKR(classData, classId); // Re-renderiza apenas a lista de alunos
-                }
-            } catch (error) {
-                console.error("Erro ao atualizar aluno: ", error);
+            // Atualiza o modal se estiver aberto
+            if (viewClassModal.style.display === 'block' && viewClassIdInput.value === classId) {
+                 const updatedClassData = localState.classes[classIndex];
+                 renderStudentsOKR(updatedClassData, classId); // Re-renderiza apenas a lista de alunos
             }
         }
 
         /** Exclui um aluno */
-        async function deleteStudent(classId, studentId) {
+        function deleteStudent(classId, studentId) {
             if (!confirm("Tem certeza que deseja excluir este aluno?")) return;
 
-            const classData = localState.classes.find(c => c.id === classId);
-            if (!classData) return;
+            const classIndex = localState.classes.findIndex(c => c.id === classId);
+            if (classIndex === -1) return;
 
+            const classData = localState.classes[classIndex];
             const updatedStudents = classData.students.filter(student => student.id !== studentId);
-
-            loadingSpinner.style.display = 'flex';
-            try {
-                const docRef = doc(db, `artifacts/${appId}/public/data/onboarding-classes/${classId}`);
-                await updateDoc(docRef, { students: updatedStudents });
-                openViewModal(classId, 'students'); // Reabre o modal atualizado
-            } catch (error) {
-                console.error("Erro ao excluir aluno: ", error);
-            } finally {
-                loadingSpinner.style.display = 'none';
-            }
+            
+            localState.classes[classIndex].students = updatedStudents;
+            saveClassesToStorage();
+            openViewModal(classId, 'students'); // Reabre o modal atualizado
         }
         
         /** Exclui uma turma */
-        async function deleteClass(classId) {
+        function deleteClass(classId) {
             if (!confirm("Tem certeza que deseja excluir esta turma? Esta ação é irreversível.")) return;
 
-            loadingSpinner.style.display = 'flex';
-            try {
-                const docRef = doc(db, `artifacts/${appId}/public/data/onboarding-classes/${classId}`);
-                await deleteDoc(docRef);
-                // O onSnapshot cuidará de atualizar a UI
-            } catch (error) {
-                console.error("Erro ao excluir turma: ", error);
-            } finally {
-                loadingSpinner.style.display = 'none';
-            }
+            localState.classes = localState.classes.filter(c => c.id !== classId);
+            saveClassesToStorage();
+            renderClasses(); // Atualiza a visualização principal
         }
 
         // --- Funções de Renderização ---
@@ -563,13 +490,12 @@
                             <p class="${weekColor} text-lg font-semibold mt-1">${weekInfo.text}</p>
                         </div>
                         <span class="flex items-center text-white bg-lakers-purple-dark px-3 py-1 rounded-full text-sm font-medium">
-                            <i data-lucide="users" class="w-4 h-4 mr-2"></i>
-                            ${classData.students.length}
+                            Alunos: <span class="font-bold ml-1.5">${classData.students.length}</span>
                         </span>
                     </div>
                     <div class="flex justify-end space-x-3 mt-6">
-                        <button data-action="delete" data-id="${classData.id}" class="text-gray-400 hover:text-red-500 transition p-2 rounded-full">
-                            <i data-lucide="trash-2" class="w-5 h-5 pointer-events-none"></i>
+                        <button data-action="delete" data-id="${classData.id}" class="bg-red-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-red-500 transition">
+                            Excluir
                         </button>
                         <button data-action="view" data-id="${classData.id}" class="bg-lakers-gold text-lakers-purple-darker font-semibold py-2 px-5 rounded-lg shadow-md hover:bg-lakers-gold-light transition">
                             Ver Detalhes
@@ -578,7 +504,6 @@
                 `;
                 classesContainer.appendChild(card);
             });
-            lucide.createIcons(); // Atualiza os ícones
         }
 
         /** Abre e preenche o modal de detalhes da turma */
@@ -634,8 +559,8 @@
                 
                 // Botão de Excluir Aluno
                 const deleteBtn = document.createElement('button');
-                deleteBtn.className = 'absolute top-4 right-4 text-gray-500 hover:text-red-500 transition';
-                deleteBtn.innerHTML = `<i data-lucide="trash-2" class="w-5 h-5"></i>`;
+                deleteBtn.className = 'absolute top-4 right-4 text-red-500 hover:text-red-400 font-semibold text-sm transition';
+                deleteBtn.innerHTML = `Excluir Aluno`;
                 deleteBtn.onclick = () => deleteStudent(classId, student.id);
                 studentCard.appendChild(deleteBtn);
 
@@ -676,7 +601,6 @@
                 `;
                 studentsOkrContainer.appendChild(studentCard);
             });
-            lucide.createIcons();
         }
 
         /** Função auxiliar para renderizar uma seção de OKR */
@@ -807,44 +731,9 @@
         }
         
         // --- Inicialização ---
-        async function initializeAppWithAuth() {
-            try {
-                const app = initializeApp(firebaseConfig);
-                db = getFirestore(app);
-                auth = getAuth(app);
-
-                onAuthStateChanged(auth, async (user) => {
-                    if (user) {
-                        console.log('Usuário autenticado:', user.uid);
-                        userId = user.uid;
-                        loadClasses(); // Carrega os dados assim que o usuário estiver pronto
-                    } else {
-                        console.log('Nenhum usuário. Tentando autenticar...');
-                        if (initialAuthToken) {
-                            try {
-                                await signInWithCustomToken(auth, initialAuthToken);
-                                console.log('Login com Custom Token OK.');
-                            } catch (error) {
-                                console.error('Falha no login com Custom Token, tentando anônimo:', error);
-                                await signInAnonymously(auth);
-                            }
-                        } else {
-                            await signInAnonymously(auth);
-                            console.log('Login anônimo OK.');
-                        }
-                    }
-                });
-            } catch (error) {
-                console.error("Erro ao inicializar Firebase:", error);
-                loadingSpinner.textContent = 'Erro ao carregar a aplicação.';
-            }
-        }
-        
-        // Inicia a aplicação
         document.addEventListener('DOMContentLoaded', () => {
             setupEventListeners();
-            lucide.createIcons(); // Renderiza ícones iniciais
-            initializeAppWithAuth();
+            loadClasses(); // Carrega os dados do localStorage ao iniciar
         });
 
     </script>
