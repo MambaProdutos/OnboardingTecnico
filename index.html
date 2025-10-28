@@ -50,6 +50,18 @@
             background-color: rgba(0, 0, 0, 0.6);
             animation: fadeIn 0.3s ease-out;
         }
+
+        /* Correção de Z-index: Garante que o modal de adicionar aluno (nível 2)
+           apareça sobre o modal de ver turma (nível 1) */
+        #add-student-modal {
+            z-index: 60;
+        }
+
+        /* Nível 3 - OKRs do Aluno (Mais alto) */
+        #student-okr-modal {
+            z-index: 70;
+        }
+        
         .modal-content {
             animation: slideIn 0.3s ease-out;
             max-height: 90vh;
@@ -176,9 +188,32 @@
                     <span class="font-bold text-xl mr-1">+</span>
                     <span>Adicionar Aluno</span>
                 </button>
-                <div id="students-okr-container" class="space-y-6">
-                    <!-- Conteúdo dos Alunos e OKRs -->
+                <!-- Este container agora terá uma GRADE de cards de alunos -->
+                <div id="students-okr-container" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    <!-- Cards de Alunos serão injetados aqui -->
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Ver OKRs do Aluno (Nível 3) -->
+    <div id="student-okr-modal" class="modal">
+        <div class="modal-content bg-lakers-purple-dark w-11/12 md:max-w-3xl m-auto mt-12 p-6 rounded-xl shadow-2xl border border-lakers-purple overflow-y-auto">
+            <div class="flex justify-between items-center mb-6">
+                <div>
+                    <h2 id="student-okr-title" class="text-3xl font-bold text-white"></h2>
+                    <p id="student-okr-role" class="text-xl text-lakers-gold-light"></p>
+                </div>
+                <button id="close-student-okr" class="text-gray-400 hover:text-white transition text-3xl font-bold">&times;</button>
+            </div>
+            
+            <!-- Hidden inputs to store context -->
+            <input type="hidden" id="student-okr-class-id">
+            <input type="hidden" id="student-okr-student-id">
+
+            <!-- Container for autonomy and OKRs -->
+            <div id="student-okr-content-container">
+                <!-- Conteúdo (Autonomia e OKRs) será injetado aqui pelo JS -->
             </div>
         </div>
     </div>
@@ -218,6 +253,15 @@
         const scheduleTabContent = document.getElementById('tab-content-schedule');
         const studentsTabContent = document.getElementById('tab-content-students');
         const studentsOkrContainer = document.getElementById('students-okr-container');
+
+        // --- Novos Elementos do Modal de OKR Individual ---
+        const studentOkrModal = document.getElementById('student-okr-modal');
+        const closeStudentOkrBtn = document.getElementById('close-student-okr');
+        const studentOkrTitle = document.getElementById('student-okr-title');
+        const studentOkrRole = document.getElementById('student-okr-role');
+        const studentOkrClassIdInput = document.getElementById('student-okr-class-id');
+        const studentOkrStudentIdInput = document.getElementById('student-okr-student-id');
+        const studentOkrContentContainer = document.getElementById('student-okr-content-container');
 
         // --- Funções Auxiliares de Data ---
 
@@ -432,8 +476,17 @@
 
             // Atualiza o modal se estiver aberto
             if (viewClassModal.style.display === 'block' && viewClassIdInput.value === classId) {
-                 const updatedClassData = localState.classes[classIndex];
-                 renderStudentsOKR(updatedClassData, classId); // Re-renderiza apenas a lista de alunos
+                 const updatedClassData = localState.classes.find(c => c.id === classId);
+                 renderStudentCards(updatedClassData, classId); // Re-renderiza a grid de cards
+            }
+
+            // Atualiza o modal DE OKR INDIVIDUAL se estiver aberto (caso a autonomia mude)
+            if (studentOkrModal.style.display === 'block' && 
+                studentOkrClassIdInput.value === classId &&
+                studentOkrStudentIdInput.value === studentId &&
+                key === 'autonomy') {
+                
+                openStudentOkrModal(classId, studentId); // Reabre para refletir
             }
         }
 
@@ -449,7 +502,13 @@
             
             localState.classes[classIndex].students = updatedStudents;
             saveClassesToStorage();
-            openViewModal(classId, 'students'); // Reabre o modal atualizado
+            
+            // Atualiza a visualização da turma (que agora mostra os cards)
+            const updatedClassData = localState.classes[classIndex];
+            renderStudentCards(updatedClassData, classId);
+            
+            // Atualiza a contagem de alunos no card principal
+            renderClasses();
         }
         
         /** Exclui uma turma */
@@ -535,72 +594,95 @@
             `).join('');
             
             // Renderiza Alunos
-            renderStudentsOKR(classData, classId);
+            renderStudentCards(classData, classId);
 
             // Abre o modal e a aba correta
             switchTab(defaultTab);
             openModal(viewClassModal);
         }
         
-        /** Renderiza a lista de alunos e OKRs no modal */
-        function renderStudentsOKR(classData, classId) {
+        /** Renderiza a lista de cards de alunos no modal de turma */
+        function renderStudentCards(classData, classId) {
             studentsOkrContainer.innerHTML = ''; // Limpa
             
             if(classData.students.length === 0) {
+                studentsOkrContainer.className = ''; // Reseta o grid
                 studentsOkrContainer.innerHTML = `<p class="text-gray-400 text-center">Nenhum aluno adicionado a esta turma.</p>`;
                 return;
             }
             
-            const weekInfo = getCurrentWeekInfo(classData.weekStartDates);
+            // Define o container como um grid
+            studentsOkrContainer.className = 'grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4';
 
             classData.students.forEach(student => {
                 const studentCard = document.createElement('div');
-                studentCard.className = 'bg-lakers-purple-dark rounded-lg p-6 relative';
-                
-                // Botão de Excluir Aluno
-                const deleteBtn = document.createElement('button');
-                deleteBtn.className = 'absolute top-4 right-4 text-red-500 hover:text-red-400 font-semibold text-sm transition';
-                deleteBtn.innerHTML = `Excluir Aluno`;
-                deleteBtn.onclick = () => deleteStudent(classId, student.id);
-                studentCard.appendChild(deleteBtn);
+                // Este é o card clicável
+                studentCard.className = 'bg-lakers-purple-dark rounded-lg p-4 relative transition-all duration-200 hover:shadow-lg hover:border-lakers-gold border border-transparent cursor-pointer';
+                studentCard.dataset.action = 'view-student-okr';
+                studentCard.dataset.studentid = student.id;
+                studentCard.dataset.classid = classId;
 
-                // Conteúdo do Card
-                studentCard.innerHTML += `
-                    <div class="flex items-center justify-between mb-4">
-                        <div>
-                            <h4 class="text-xl font-bold text-white">${student.name}</h4>
-                            <p class="text-lakers-gold-light">${student.role}</p>
-                        </div>
-                        <div>
-                            <label for="autonomy-${student.id}" class="block text-sm font-medium mb-1">Autonomia</label>
-                            <select id="autonomy-${student.id}" data-studentid="${student.id}" data-classid="${classId}" class="autonomy-select bg-lakers-purple text-white rounded-lg p-2 border border-lakers-gold focus:outline-none focus:ring-2 focus:ring-lakers-gold">
-                                <option value="Autonomia Parcial" ${student.autonomy === 'Autonomia Parcial' ? 'selected' : ''}>Parcial</option>
-                                <option value="Autonomia Completa" ${student.autonomy === 'Autonomia Completa' ? 'selected' : ''}>Completa</option>
-                            </select>
-                        </div>
-                    </div>
+                studentCard.innerHTML = `
+                    <h4 class="text-lg font-bold text-white truncate">${student.name}</h4>
+                    <p class="text-lakers-gold-light text-sm truncate">${student.role}</p>
                     
-                    <!-- OKRs -->
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        ${renderOkrSection("Semana 2", [
-                            { key: 'week2_memberKit', label: 'Finalização do Member Kit', checked: student.okrs.week2_memberKit },
-                            { key: 'week2_aprovacao', label: 'Aprovação na Formação', checked: student.okrs.week2_aprovacao },
-                            { key: 'week2_dones', label: '5 Dones completos (Semana)', checked: student.okrs.week2_dones },
-                        ], student.id, classId, weekInfo.weekNumber >= 2)}
-                        
-                        ${renderOkrSection("Semana 3", [
-                            { key: 'week3_dones', label: '10 Dones Completos', checked: student.okrs.week3_dones },
-                            { key: 'week3_1on1', label: '1:1 LÍDER + BUDDY (Sexta)', checked: student.okrs.week3_1on1 },
-                        ], student.id, classId, weekInfo.weekNumber >= 3)}
-
-                        ${renderOkrSection("Semana 4", [
-                            { key: 'week4_dones', label: '15 Dones completos', checked: student.okrs.week4_dones },
-                            { key: 'week4_sharkTank', label: 'Aprovação no Shark Tank', checked: student.okrs.week4_sharkTank },
-                        ], student.id, classId, weekInfo.weekNumber >= 4)}
-                    </div>
+                    <!-- Botão de Excluir (Agora funciona e está posicionado) -->
+                    <button data-action="delete-student" data-studentid="${student.id}" data-classid="${classId}" 
+                            class="absolute top-2 right-2 text-red-500 hover:text-red-400 p-1 rounded-full hover:bg-lakers-purple text-xs font-semibold transition">
+                        Excluir
+                    </button>
                 `;
                 studentsOkrContainer.appendChild(studentCard);
             });
+        }
+
+        /** Abre e preenche o modal de OKRs de um aluno específico */
+        function openStudentOkrModal(classId, studentId) {
+            const classData = localState.classes.find(c => c.id === classId);
+            if (!classData) return;
+            
+            const student = classData.students.find(s => s.id === studentId);
+            if (!student) return;
+
+            const weekInfo = getCurrentWeekInfo(classData.weekStartDates);
+
+            // Preenche o modal
+            studentOkrTitle.textContent = student.name;
+            studentOkrRole.textContent = student.role;
+            studentOkrClassIdInput.value = classId;
+            studentOkrStudentIdInput.value = studentId;
+
+            // Renderiza o conteúdo (autonomia + OKRs)
+            studentOkrContentContainer.innerHTML = `
+                <div class="flex items-center justify-between mb-6 bg-lakers-purple p-4 rounded-lg">
+                    <label for="autonomy-${student.id}" class="block text-lg font-medium">Autonomia</label>
+                    <select id="autonomy-${student.id}" data-studentid="${student.id}" data-classid="${classId}" class="autonomy-select bg-lakers-purple-dark text-white rounded-lg p-2 border border-lakers-gold focus:outline-none focus:ring-2 focus:ring-lakers-gold">
+                        <option value="Autonomia Parcial" ${student.autonomy === 'Autonomia Parcial' ? 'selected' : ''}>Parcial</option>
+                        <option value="Autonomia Completa" ${student.autonomy === 'Autonomia Completa' ? 'selected' : ''}>Completa</option>
+                    </select>
+                </div>
+                
+                <!-- OKRs -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    ${renderOkrSection("Semana 2", [
+                        { key: 'week2_memberKit', label: 'Finalização do Member Kit', checked: student.okrs.week2_memberKit },
+                        { key: 'week2_aprovacao', label: 'Aprovação na Formação', checked: student.okrs.week2_aprovacao },
+                        { key: 'week2_dones', label: '5 Dones completos (Semana)', checked: student.okrs.week2_dones },
+                    ], student.id, classId, weekInfo.weekNumber >= 2)}
+                    
+                    ${renderOkrSection("Semana 3", [
+                        { key: 'week3_dones', label: '10 Dones Completos', checked: student.okrs.week3_dones },
+                        { key: 'week3_1on1', label: '1:1 LÍDER + BUDDY (Sexta)', checked: student.okrs.week3_1on1 },
+                    ], student.id, classId, weekInfo.weekNumber >= 3)}
+
+                    ${renderOkrSection("Semana 4", [
+                        { key: 'week4_dones', label: '15 Dones completos', checked: student.okrs.week4_dones },
+                        { key: 'week4_sharkTank', label: 'Aprovação no Shark Tank', checked: student.okrs.week4_sharkTank },
+                    ], student.id, classId, weekInfo.weekNumber >= 4)}
+                </div>
+            `;
+            
+            openModal(studentOkrModal);
         }
 
         /** Função auxiliar para renderizar uma seção de OKR */
@@ -659,6 +741,7 @@
             cancelCreateClassBtn.addEventListener('click', () => closeModal(createClassModal));
             cancelAddStudentBtn.addEventListener('click', () => closeModal(addStudentModal));
             closeViewClassBtn.addEventListener('click', () => closeModal(viewClassModal));
+            closeStudentOkrBtn.addEventListener('click', () => closeModal(studentOkrModal)); // Fechar novo modal
             
             // Ações principais
             confirmCreateClassBtn.addEventListener('click', () => {
@@ -698,22 +781,48 @@
                 }
             });
 
-            // Delegação de eventos no modal de alunos (para OKRs e Autonomia)
-            studentsTabContent.addEventListener('change', (e) => {
+            // Delegação de eventos no container de cards de aluno (substitui o listener antigo)
+            studentsOkrContainer.addEventListener('click', (e) => {
                 const target = e.target;
                 
+                // Botão Excluir
+                const deleteButton = target.closest('[data-action="delete-student"]');
+                if (deleteButton) {
+                    e.stopPropagation(); // Impede o card de ser clicado
+                    const { studentid, classid } = deleteButton.dataset;
+                    deleteStudent(classid, studentid);
+                    return;
+                }
+
+                // Card Clicável para ver OKRs
+                const card = target.closest('[data-action="view-student-okr"]');
+                if (card) {
+                    const { studentid, classid } = card.dataset;
+                    openStudentOkrModal(classid, studentid);
+                }
+            });
+
+            // NOVO LISTENER: Delegação de eventos no modal DE OKR INDIVIDUAL
+            studentOkrModal.addEventListener('change', (e) => {
+                const target = e.target;
+                // Pega o contexto dos inputs hidden
+                const classId = studentOkrClassIdInput.value;
+                const studentId = studentOkrStudentIdInput.value;
+
+                if (!classId || !studentId) return;
+
                 // Checkbox de OKR
                 if (target.classList.contains('okr-checkbox')) {
-                    const { okrkey, studentid, classid } = target.dataset;
-                    updateStudentData(classid, studentid, okrkey, target.checked);
+                    const { okrkey } = target.dataset;
+                    updateStudentData(classId, studentId, okrkey, target.checked);
                 }
                 
                 // Select de Autonomia
                 if (target.classList.contains('autonomy-select')) {
-                    const { studentid, classid } = target.dataset;
-                    updateStudentData(classid, studentid, 'autonomy', target.value);
+                    updateStudentData(classId, studentId, 'autonomy', target.value);
                 }
             });
+
 
             // Troca de Abas
             document.querySelectorAll('.tab-button').forEach(button => {
@@ -727,6 +836,7 @@
                 if (e.target === createClassModal) closeModal(createClassModal);
                 if (e.target === addStudentModal) closeModal(addStudentModal);
                 if (e.target === viewClassModal) closeModal(viewClassModal);
+                if (e.target === studentOkrModal) closeModal(studentOkrModal); // Fechar novo modal
             });
         }
         
@@ -739,4 +849,6 @@
     </script>
 </body>
 </html>
+
+
 
