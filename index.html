@@ -268,14 +268,21 @@
         /** Formata um objeto Date para dd/MM/yyyy */
         function formatDate(date) {
             if (!date) return 'Data Inválida';
-            // Adiciona 12 horas para evitar problemas de fuso horário que pulam o dia
-            const stableDate = new Date(date.getTime() + 12 * 60 * 60 * 1000);
-            return stableDate.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+            
+            // A data que é passada (criada com T12:00:00) já está no dia local correto,
+            // pois new Date("YYYY-MM-DDT12:00:00") é interpretado como local.
+            // O uso de timeZone: 'UTC' + 12h estava causando o pulo de dia.
+            // Apenas formatar para pt-BR (que usará o fuso local) é o correto.
+            return date.toLocaleDateString('pt-BR');
         }
         
-        /** Formata um objeto Date para yyyy-MM-dd */
+        /** Formata um objeto Date para yyyy-MM-dd (formato ISO) mas mantendo a data LOCAL */
         function formatToISODate(date) {
-            return date.toISOString().split('T')[0];
+            // return date.toISOString().split('T')[0]; // ISSO CAUSA BUGS DE TIMEZONE
+            const year = date.getFullYear();
+            const month = (date.getMonth() + 1).toString().padStart(2, '0');
+            const day = date.getDate().toString().padStart(2, '0');
+            return `${year}-${month}-${day}`;
         }
 
         /** Adiciona dias a uma data */
@@ -849,6 +856,7 @@
     </script>
 </body>
 </html>
+
 
 
 
